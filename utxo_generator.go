@@ -350,12 +350,16 @@ func DeleteAllUtxosFromOldDb(db storage.Storage) (bool, error) {
 		for _, tx := range blkTxs {
 			for _, vout := range tx.Vout {
 				pkh := vout.PubKeyHash
-				utxoKey, err := db.Get([]byte(pkh.String()))
-				if utxoKey != nil && err != storage.ErrKeyInvalid {
+
+				//Print public key hash
+				fmt.Println("Public Keyhash", pkh.String())
+
+				utxoInfo, err := db.Get([]byte(pkh.String()))
+				if utxoInfo != nil && err != storage.ErrKeyInvalid {
 					utxoInfoPb := &utxopb.UtxoInfo{}
-					err = proto.Unmarshal(utxoKey, utxoInfoPb)
+					err = proto.Unmarshal(utxoInfo, utxoInfoPb)
 					if err != nil {
-						fmt.Println("Unmarshal utxo info failed.")
+						fmt.Println("Unmarshal utxoInfo failed.")
 					}
 					utxoInfo := utxo.NewUTXOInfo()
 					utxoInfo.FromProto(utxoInfoPb)
@@ -366,35 +370,35 @@ func DeleteAllUtxosFromOldDb(db storage.Storage) (bool, error) {
 						input = utxoInfo.GetCreateContractUTXOKey()
 					}
 
+					//Print Utxo Key
+					fmt.Println("Utxo Key", string(input))
+
 					//input = []byte(hex.EncodeToString(input))
 					//input = []byte(util.Bytes2str(input))
 					//input = util.Str2bytes(util.Bytes2str(input))
 					//input = util.Str2bytes(string(input))
 					//input = util.Str2bytes(hex.EncodeToString(input))
-					fmt.Println("---------------------------------------------------")
-					fmt.Println("Original  ", input)
-					fmt.Println("")
-					fmt.Println("Bytes2str:", util.Bytes2str(input))
-					fmt.Println("Then ↓")
-					fmt.Println("Str2bytes:", util.Str2bytes(util.Bytes2str(input)))
-					fmt.Println("")
-					fmt.Println("string:   ", string(input))
-					fmt.Println("Then ↓")
-					fmt.Println("Str2bytes:", util.Str2bytes(string(input)))
-					fmt.Println("---------------------------------------------------")
-
-					//input = util.Str2bytes(string(input))
-					input = util.Str2bytes(util.Bytes2str(input))
 
 					exist := hasUtxo(input, db)
-					fmt.Println("")
 
 					for exist {
-						utxo, err := db.Get(input)
-						if utxo != nil && err != storage.ErrKeyInvalid {
+						UTXO, err := db.Get(input)
+						if UTXO != nil && err != storage.ErrKeyInvalid {
+
+							//Print Utxo
+							fmt.Println("Utxo", UTXO)
+							utxoPb := &utxopb.Utxo{}
+							err = proto.Unmarshal(UTXO, utxoPb)
+							if err != nil {
+								fmt.Println("Unmarshal utxo failed.")
+							}
+							decoded_utxo := &utxo.UTXO{}
+							decoded_utxo.FromProto(utxoPb)
+							printUTXO(decoded_utxo)
+
 							err = db.Del(input)
 							if err != nil {
-								fmt.Println("Error: fail to delete pubkeyhash-utxotx pairs!")
+								fmt.Println("Error: fail to delete utxoKey-utxo pairs!")
 								return keyExist, err
 							}
 							exist = hasUtxo(input, db)
@@ -402,10 +406,13 @@ func DeleteAllUtxosFromOldDb(db storage.Storage) (bool, error) {
 					}
 					err = db.Del(pkh)
 					if err != nil {
-						fmt.Println("Error: fail to delete pubkeyhash-utxotx pairs!")
+						fmt.Println("Error: fail to delete pubkeyhash-utxoInfo pairs!")
 						return keyExist, err
 					}
 					keyExist = true
+
+					//Line break
+					fmt.Println()
 				}
 			}
 		}
@@ -413,12 +420,22 @@ func DeleteAllUtxosFromOldDb(db storage.Storage) (bool, error) {
 	return keyExist, nil
 }
 
+func printUTXO(utxo *utxo.UTXO) {
+	fmt.Println("Value:            ", utxo.Value)
+	fmt.Println("Public Key Hash:  ", utxo.PubKeyHash)
+	fmt.Println("Transaction ID:   ", utxo.Txid)
+	fmt.Println("Transaction Index:", utxo.TxIndex)
+	fmt.Println("Utxo Type:        ", utxo.UtxoType)
+	fmt.Println("Contract:         ", utxo.Contract)
+	fmt.Println("Previous Utxo Key:", utxo.PrevUtxoKey)
+	fmt.Println("Next Utxo Key:    ", utxo.NextUtxoKey)
+}
+
 func hasUtxo(key []byte, db storage.Storage) bool {
 	val, err := db.Get(key)
 	if val != nil && err != storage.ErrKeyInvalid {
 		return true
 	}
-	fmt.Println(err)
 	return false
 }
 
