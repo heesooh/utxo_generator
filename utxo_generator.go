@@ -1,29 +1,27 @@
 package main
 
 import (
-	"encoding/hex"
+	//utxov4pb "github.com/heesooh/go-dappley/tool/utxo_upgrade/pb"
+	utxopb "github.com/dappley/go-dappley/core/utxo/pb"
+	"github.com/dappley/go-dappley/core/account"
+	"github.com/dappley/go-dappley/logic/lutxo"
+	"github.com/dappley/go-dappley/common/hash"
+	"github.com/dappley/go-dappley/core/block"
+	"github.com/dappley/go-dappley/core/utxo"
+	"github.com/dappley/go-dappley/storage"
+	"github.com/dappley/go-dappley/util"
+	"github.com/golang/protobuf/proto"
+	"google.golang.org/grpc/status"
 	"encoding/json"
-	//"strconv"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
-
-	"github.com/dappley/go-dappley/common/hash"
-	"github.com/dappley/go-dappley/core/account"
-	"github.com/dappley/go-dappley/core/block"
-	"github.com/dappley/go-dappley/core/utxo"
-	utxopb "github.com/dappley/go-dappley/core/utxo/pb"
-	"github.com/golang/protobuf/proto"
-	"github.com/dappley/go-dappley/logic/lutxo"
-	"github.com/dappley/go-dappley/storage"
-	"github.com/dappley/go-dappley/util"
-	"google.golang.org/grpc/status"
 )
 
 var (
-	tipKey             = []byte("tailBlockHash")
-	//largeBlockNumBound = uint64(10000)
+	tipKey = []byte("tailBlockHash")
 )
 
 var (
@@ -215,11 +213,6 @@ func utxoConvertCmdHandler(flags cmdFlags) {
 		fmt.Println("\nThe old utxo structure doesn't exist in the database already...")
 	}
 
-	// largeSet := false
-	// if tailHeight >= largeBlockNumBound {
-	// 	largeSet = true
-	// }
-
 	utxoCache := utxo.NewUTXOCache(db)
 	utxoIndex := lutxo.NewUTXOIndex(utxoCache)
 	fmt.Println("Start converting transactions in blocks...")
@@ -231,16 +224,6 @@ func utxoConvertCmdHandler(flags cmdFlags) {
 		}
 		blkTxs := block.GetTransactions()
 		utxoIndex.UpdateUtxos(blkTxs)
-		// if largeSet {
-		// 	if i%100 == 0 {
-		// 		//print the convert info every 100 blocks
-		// 		fmt.Println("Finish converting the block of height", i)
-		// 		PrintBlock(block)
-		// 	}
-		// } else {
-		// 	fmt.Println("Finish converting the block of height", i)
-		// 	PrintBlock(block)
-		// }
 	}
 	//save the results in db
 	err = utxoIndex.Save()
@@ -373,20 +356,14 @@ func DeleteAllUtxosFromOldDb(db storage.Storage) (bool, error) {
 					//Print Utxo Key
 					fmt.Println("Utxo Key", string(input))
 
-					//input = []byte(hex.EncodeToString(input))
-					//input = []byte(util.Bytes2str(input))
-					//input = util.Str2bytes(util.Bytes2str(input))
-					//input = util.Str2bytes(string(input))
-					//input = util.Str2bytes(hex.EncodeToString(input))
-
 					exist := hasUtxo(input, db)
 
 					for exist {
 						UTXO, err := db.Get(input)
-						if UTXO != nil && err != storage.ErrKeyInvalid {
 
-							//Print Utxo
-							fmt.Println("Utxo", UTXO)
+						fmt.Println(UTXO)
+
+						if UTXO != nil && err != storage.ErrKeyInvalid {
 							utxoPb := &utxopb.Utxo{}
 							err = proto.Unmarshal(UTXO, utxoPb)
 							if err != nil {
@@ -394,6 +371,10 @@ func DeleteAllUtxosFromOldDb(db storage.Storage) (bool, error) {
 							}
 							decoded_utxo := &utxo.UTXO{}
 							decoded_utxo.FromProto(utxoPb)
+							
+							decoded_utxo.NextUtxoKey = decoded_utxo.PrevUtxoKey
+							decoded_utxo.PrevUtxoKey = nil
+
 							printUTXO(decoded_utxo)
 
 							err = db.Del(input)
@@ -401,19 +382,23 @@ func DeleteAllUtxosFromOldDb(db storage.Storage) (bool, error) {
 								fmt.Println("Error: fail to delete utxoKey-utxo pairs!")
 								return keyExist, err
 							}
-							exist = hasUtxo(input, db)
+
+							exist = hasUtxo(decoded_utxo.NextUtxoKey, db)
+							input = decoded_utxo.NextUtxoKey
 						}
 					}
-					err = db.Del(pkh)
-					if err != nil {
-						fmt.Println("Error: fail to delete pubkeyhash-utxoInfo pairs!")
-						return keyExist, err
-					}
-					keyExist = true
-
-					//Line break
-					fmt.Println()
 				}
+
+				err = db.Del([]byte(pkh.String()))
+				if err != nil {
+					fmt.Println("Error: fail to delete pubkeyhash-utxoInfo pairs!")
+					return keyExist, err
+				}
+				
+				keyExist = true
+
+				//Line break
+				fmt.Println()
 			}
 		}
 	}
@@ -429,6 +414,8 @@ func printUTXO(utxo *utxo.UTXO) {
 	fmt.Println("Contract:         ", utxo.Contract)
 	fmt.Println("Previous Utxo Key:", utxo.PrevUtxoKey)
 	fmt.Println("Next Utxo Key:    ", utxo.NextUtxoKey)
+	fmt.Println(string(utxo.NextUtxoKey))
+	fmt.Println("")
 }
 
 func hasUtxo(key []byte, db storage.Storage) bool {
