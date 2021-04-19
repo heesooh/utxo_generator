@@ -335,7 +335,7 @@ func DeleteAllUtxosFromOldDb(db storage.Storage) (bool, error) {
 				pkh := vout.PubKeyHash
 
 				//Print public key hash
-				fmt.Println("Public Keyhash", pkh.String())
+				//fmt.Println("Public Keyhash", pkh.String())
 
 				utxoInfo, err := db.Get([]byte(pkh.String()))
 				if utxoInfo != nil && err != storage.ErrKeyInvalid {
@@ -354,14 +354,14 @@ func DeleteAllUtxosFromOldDb(db storage.Storage) (bool, error) {
 					}
 
 					//Print Utxo Key
-					fmt.Println("Utxo Key", string(input))
+					//fmt.Println("Utxo Key", string(input))
 
 					exist := hasUtxo(input, db)
 
 					for exist {
 						UTXO, err := db.Get(input)
 
-						fmt.Println(UTXO)
+						//fmt.Println(UTXO)
 
 						if UTXO != nil && err != storage.ErrKeyInvalid {
 							utxoPb := &utxopb.Utxo{}
@@ -375,7 +375,7 @@ func DeleteAllUtxosFromOldDb(db storage.Storage) (bool, error) {
 							decoded_utxo.NextUtxoKey = decoded_utxo.PrevUtxoKey
 							decoded_utxo.PrevUtxoKey = nil
 
-							printUTXO(decoded_utxo)
+							//printUTXO(decoded_utxo)
 
 							err = db.Del(input)
 							if err != nil {
@@ -398,7 +398,7 @@ func DeleteAllUtxosFromOldDb(db storage.Storage) (bool, error) {
 				keyExist = true
 
 				//Line break
-				fmt.Println()
+				//fmt.Println()
 			}
 		}
 	}
